@@ -5,7 +5,7 @@ import 'verify_email_screen.dart';
 import 'welcome_screen.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'colors.dart';
+import 'utils/colors.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -140,7 +140,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Continue your land development journey',
+                    'Continue your Renovation Journey',
                     style: GoogleFonts.poppins(
                       fontSize: 16,
                       color: AppColors.greyDark.withOpacity(0.7),

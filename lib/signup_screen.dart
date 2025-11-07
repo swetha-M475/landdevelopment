@@ -3,7 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'verify_email_screen.dart';
-import 'colors.dart';
+import 'utils/colors.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});

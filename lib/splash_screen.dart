@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'login_screen.dart';
-import 'colors.dart';
+import 'utils/colors.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -95,7 +95,7 @@ class _SplashScreenState extends State<SplashScreen>
                       ),
                       const SizedBox(height: 24),
                       Text(
-                        'TerraDev',
+                        'ShivPunarnava',
                         style: TextStyle(
                           color: AppColors.white,
                           fontSize: 32,
@@ -112,7 +112,7 @@ class _SplashScreenState extends State<SplashScreen>
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Transforming Barren Lands',
+                        'Renovating Shiva idols',
                         style: TextStyle(
                           color: AppColors.white.withOpacity(0.9),
                           fontSize: 16,
