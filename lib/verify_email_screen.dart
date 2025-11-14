@@ -25,12 +25,12 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen>
   @override
   void initState() {
     super.initState();
-    
+
     _pulseController = AnimationController(
       duration: const Duration(seconds: 2),
       vsync: this,
     );
-    
+
     _pulseAnimation = Tween<double>(
       begin: 0.8,
       end: 1.2,
@@ -38,11 +38,12 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen>
       parent: _pulseController,
       curve: Curves.easeInOut,
     ));
-    
+
     _pulseController.repeat(reverse: true);
-    
-    // Start a periodic check every 3 seconds to see if user verified.
-    _timer = Timer.periodic(const Duration(seconds: 3), (_) => _checkVerified());
+
+    // Check periodically if user verified
+    _timer =
+        Timer.periodic(const Duration(seconds: 3), (_) => _checkVerified());
   }
 
   Future<void> _checkVerified() async {
@@ -50,8 +51,10 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen>
     final updated = FirebaseAuth.instance.currentUser!;
     if (updated.emailVerified) {
       _timer?.cancel();
-      // Update Firestore emailVerified flag
-      await FirebaseFirestore.instance.collection('users').doc(updated.uid).set({
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(updated.uid)
+          .set({
         'emailVerified': true,
       }, SetOptions(merge: true));
       if (mounted) {
@@ -72,7 +75,8 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen>
           content: const Text('Verification email sent. Check inbox.'),
           backgroundColor: AppColors.success,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       );
     } catch (e) {
@@ -81,7 +85,8 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen>
           content: Text('Failed to send: $e'),
           backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       );
     }
@@ -99,7 +104,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen>
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'Verify Email',
+          'Verify Email - Aranpani',
           style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
         ),
         leading: IconButton(
@@ -109,7 +114,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen>
               color: AppColors.white.withOpacity(0.8),
               shape: BoxShape.circle,
             ),
-            child: Icon(Icons.arrow_back, color: AppColors.secondary),
+            child: const Icon(Icons.arrow_back, color: AppColors.secondary),
           ),
           onPressed: () => Navigator.pop(context),
         ),
@@ -132,7 +137,36 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Animated Email Icon
+                // 🔱 Aranpani Temple Logo (Added)
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: [
+                        AppColors.secondary,
+                        AppColors.primary.withOpacity(0.8),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.secondary.withOpacity(0.2),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.temple_hindu_outlined,
+                    size: 64,
+                    color: AppColors.white,
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // 🔔 Animated Email Icon
                 AnimatedBuilder(
                   animation: _pulseAnimation,
                   builder: (context, child) {
@@ -151,7 +185,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen>
                             ),
                           ],
                         ),
-                        child: Icon(
+                        child: const Icon(
                           Icons.mark_email_read_outlined,
                           size: 60,
                           color: AppColors.white,
@@ -242,13 +276,14 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen>
                           ),
                           label: Text(
                             _sent ? 'Email Sent!' : 'Resend Email',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: _sent ? AppColors.success : AppColors.secondary,
+                            backgroundColor:
+                                _sent ? AppColors.success : AppColors.secondary,
                           ),
                         ),
                       ),
@@ -261,14 +296,15 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen>
                         child: OutlinedButton.icon(
                           onPressed: () async {
                             await FirebaseAuth.instance.signOut();
-                            Navigator.popUntil(context, (route) => route.isFirst);
+                            Navigator.popUntil(
+                                context, (route) => route.isFirst);
                           },
-                          icon: Icon(
+                          icon: const Icon(
                             Icons.arrow_back,
                             size: 20,
                             color: AppColors.greyDark,
                           ),
-                          label: Text(
+                          label: const Text(
                             'Back to Login',
                             style: TextStyle(
                               fontSize: 16,
@@ -286,7 +322,6 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen>
                     ],
                   ),
                 ),
-
                 const SizedBox(height: 24),
 
                 // Status Indicator
@@ -305,12 +340,13 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen>
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      SizedBox(
+                      const SizedBox(
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(AppColors.aqua),
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(AppColors.aqua),
                         ),
                       ),
                       const SizedBox(width: 12),

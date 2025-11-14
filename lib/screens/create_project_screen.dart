@@ -1,6 +1,10 @@
+// lib/screens/create_project_screen.dart
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:uuid/uuid.dart';
 import '../utils/colors.dart';
 import '../widgets/feature_selection_card.dart';
 import '../widgets/image_picker_widget.dart';
@@ -13,35 +17,28 @@ class CreateProjectScreen extends StatefulWidget {
 }
 
 class _CreateProjectScreenState extends State<CreateProjectScreen> {
-  final _formKey = GlobalKey<FormState>();
   final _pageController = PageController();
   int _currentPage = 0;
 
-  // Form Controllers - Page 1: Location Details
   final TextEditingController _placeController = TextEditingController();
   final TextEditingController _nearbyTownController = TextEditingController();
   final TextEditingController _talukController = TextEditingController();
   final TextEditingController _districtController = TextEditingController();
   final TextEditingController _mapLocationController = TextEditingController();
+  final TextEditingController _contactNameController = TextEditingController();
+  final TextEditingController _contactPhoneController = TextEditingController();
+  final TextEditingController _estimatedAmountController =
+      TextEditingController();
+  final TextEditingController _customDimensionController =
+      TextEditingController();
+  final TextEditingController _featureAmountController =
+      TextEditingController();
 
-  // Date and Status
   DateTime? _selectedDate;
-  String? _selectedStatus;
-  final List<String> _statusOptions = [
-    'Planning',
-    'In Progress',
-    'Completed',
-    'On Hold'
-  ];
 
-  // Page 2: Feature Selection
-  String? _selectedFeature; // lingam, avudai, nandhi
-  
-  // Lingam Details
-  String? _lingamType; // old or new
-  String? _lingamDimension;
-  final TextEditingController _customDimensionController = TextEditingController();
-  final TextEditingController _lingamAmountController = TextEditingController();
+  String? _selectedFeature;
+  String? _type;
+  String? _dimension;
 
   final List<Map<String, dynamic>> _predefinedDimensions = [
     {'name': '2 feet', 'amount': 50000},
@@ -49,47 +46,23 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
     {'name': '4 feet', 'amount': 100000},
   ];
 
-  // Page 3: Contact & Images
-  final TextEditingController _contactNameController = TextEditingController();
-  final TextEditingController _contactPhoneController = TextEditingController();
-  final TextEditingController _estimatedAmountController = TextEditingController();
-  
-  List<String> _selectedImages = []; // Will store image paths
-
+  List<String> _selectedImages = [];
   bool _isLoading = false;
 
   @override
   void dispose() {
+    _pageController.dispose();
     _placeController.dispose();
     _nearbyTownController.dispose();
     _talukController.dispose();
     _districtController.dispose();
     _mapLocationController.dispose();
-    _customDimensionController.dispose();
-    _lingamAmountController.dispose();
     _contactNameController.dispose();
     _contactPhoneController.dispose();
     _estimatedAmountController.dispose();
-    _pageController.dispose();
+    _customDimensionController.dispose();
+    _featureAmountController.dispose();
     super.dispose();
-  }
-
-  void _nextPage() {
-    if (_currentPage < 2) {
-      _pageController.nextPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    }
-  }
-
-  void _previousPage() {
-    if (_currentPage > 0) {
-      _pageController.previousPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    }
   }
 
   bool _validateCurrentPage() {
@@ -100,17 +73,9 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
             _talukController.text.isNotEmpty &&
             _districtController.text.isNotEmpty &&
             _mapLocationController.text.isNotEmpty &&
-            _selectedDate != null &&
-            _selectedStatus != null;
+            _selectedDate != null;
       case 1:
-        if (_selectedFeature == null) return false;
-        if (_selectedFeature == 'lingam') {
-          if (_lingamType == null) return false;
-          if (_lingamType == 'new') {
-            return _lingamDimension != null && _lingamAmountController.text.isNotEmpty;
-          }
-        }
-        return true;
+        return _selectedFeature != null;
       case 2:
         return _contactNameController.text.isNotEmpty &&
             _contactPhoneController.text.isNotEmpty &&
@@ -121,714 +86,326 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
   }
 
   Future<void> _selectDate(BuildContext context) async {
-    final DateTime? picked = await showDatePicker(
+    final picked = await showDatePicker(
       context: context,
       initialDate: DateTime.now(),
       firstDate: DateTime(2020),
       lastDate: DateTime(2030),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.light(
-              primary: AppColors.secondary,
-              onPrimary: AppColors.white,
-              surface: AppColors.white,
-            ),
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: ColorScheme.light(
+            primary: const Color(0xFFD4AF37),
+            onPrimary: Colors.white,
           ),
-          child: child!,
-        );
-      },
+        ),
+        child: child!,
+      ),
     );
-    if (picked != null && picked != _selectedDate) {
-      setState(() {
-        _selectedDate = picked;
-      });
-    }
+    if (picked != null) setState(() => _selectedDate = picked);
   }
 
   Future<void> _createProject() async {
     if (!_validateCurrentPage()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Please fill all required fields'),
-          backgroundColor: AppColors.warning,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Please fill all required fields'),
+        backgroundColor: Colors.orange,
+      ));
       return;
     }
 
     setState(() => _isLoading = true);
+    try {
+      final uuid = const Uuid();
+      final user = FirebaseAuth.instance.currentUser!;
+      final String projectId = uuid.v4();
 
-    // TODO: Add Firebase logic here
-    // For now, just simulate a delay
-    await Future.delayed(const Duration(seconds: 2));
+      await FirebaseFirestore.instance
+          .collection('projects')
+          .doc(projectId)
+          .set({
+        'projectNumber': DateTime.now().millisecondsSinceEpoch.toString(),
+        'userId': user.uid,
+        'place': _placeController.text.trim(),
+        'nearbyTown': _nearbyTownController.text.trim(),
+        'taluk': _talukController.text.trim(),
+        'district': _districtController.text.trim(),
+        'mapLocation': _mapLocationController.text.trim(),
+        'feature': _selectedFeature ?? '',
+        'featureType': _type ?? '',
+        'featureDimension': _dimension ?? '',
+        'featureAmount': _featureAmountController.text.trim(),
+        'contactName': _contactNameController.text.trim(),
+        'contactPhone': _contactPhoneController.text.trim(),
+        'estimatedAmount': _estimatedAmountController.text.trim(),
+        'dateCreated': FieldValue.serverTimestamp(),
+        'progress': 0,
+      });
 
-    setState(() => _isLoading = false);
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Project created successfully! (Frontend only)'),
-          backgroundColor: AppColors.success,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
-      Navigator.pop(context);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Plan proposed successfully!'),
+        backgroundColor: Colors.green,
+      ));
+      Navigator.pop(context, true);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Error: $e'),
+        backgroundColor: Colors.red,
+      ));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Create New Project',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-        ),
-        leading: IconButton(
-          icon: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: AppColors.white.withOpacity(0.8),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.arrow_back, color: AppColors.secondary),
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
       body: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
+            colors: [Color(0xFF4A0404), Color(0xFFD4AF37), Color(0xFFF5DEB3)],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              AppColors.primary,
-              AppColors.primary.withOpacity(0.7),
-              AppColors.white,
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(),
+              _buildProgressIndicator(),
+              Expanded(
+                child: PageView(
+                  controller: _pageController,
+                  physics: const NeverScrollableScrollPhysics(),
+                  onPageChanged: (i) => setState(() => _currentPage = i),
+                  children: [
+                    _buildLocationPage(),
+                    _buildFeaturePage(),
+                    _buildContactPage(),
+                  ],
+                ),
+              ),
+              _buildNavigationButtons(),
             ],
           ),
         ),
-        child: Column(
-          children: [
-            // Progress Indicator
-            _buildProgressIndicator(),
+      ),
+    );
+  }
 
-            // Page View
-            Expanded(
-              child: PageView(
-                controller: _pageController,
-                physics: const NeverScrollableScrollPhysics(),
-                onPageChanged: (index) {
-                  setState(() {
-                    _currentPage = index;
-                  });
-                },
-                children: [
-                  _buildLocationPage(),
-                  _buildFeaturePage(),
-                  _buildContactPage(),
-                ],
-              ),
-            ),
-
-            // Navigation Buttons
-            _buildNavigationButtons(),
-          ],
+  Widget _buildHeader() {
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Text(
+        'Propose a Plan',
+        style: GoogleFonts.cinzelDecorative(
+          fontSize: 26,
+          fontWeight: FontWeight.bold,
+          color: const Color(0xFFD4AF37),
         ),
       ),
     );
   }
 
   Widget _buildProgressIndicator() {
-    return Container(
-      padding: const EdgeInsets.all(16),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
       child: Row(
         children: [
-          _buildProgressStep(0, 'Location'),
-          _buildProgressLine(0),
-          _buildProgressStep(1, 'Feature'),
-          _buildProgressLine(1),
-          _buildProgressStep(2, 'Details'),
+          _step(0, 'Location'),
+          _line(0),
+          _step(1, 'Feature'),
+          _line(1),
+          _step(2, 'Details'),
         ],
       ),
     );
   }
 
-  Widget _buildProgressStep(int step, String label) {
-    final isActive = _currentPage >= step;
+  Widget _step(int step, String label) {
+    final active = _currentPage >= step;
     return Column(
       children: [
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: isActive ? AppColors.secondary : AppColors.greyLight.withOpacity(0.3),
-            shape: BoxShape.circle,
-            boxShadow: isActive
-                ? [
-                    BoxShadow(
-                      color: AppColors.secondary.withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Center(
-            child: Text(
-              '${step + 1}',
-              style: GoogleFonts.poppins(
-                color: isActive ? AppColors.white : AppColors.greyDark,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
+        CircleAvatar(
+          backgroundColor: active ? const Color(0xFFD4AF37) : Colors.white24,
+          child: Text(
+            '${step + 1}',
+            style: TextStyle(color: active ? Colors.white : Colors.black45),
           ),
         ),
         const SizedBox(height: 4),
-        Text(
-          label,
-          style: GoogleFonts.poppins(
-            fontSize: 12,
-            color: isActive ? AppColors.secondary : AppColors.greyDark,
-            fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-          ),
-        ),
+        Text(label,
+            style: GoogleFonts.poppins(
+                fontSize: 12, color: active ? Colors.white : Colors.white70)),
       ],
     );
   }
 
-  Widget _buildProgressLine(int step) {
-    final isActive = _currentPage > step;
+  Widget _line(int step) {
+    final active = _currentPage > step;
     return Expanded(
       child: Container(
         height: 2,
         margin: const EdgeInsets.only(bottom: 20),
-        color: isActive ? AppColors.secondary : AppColors.greyLight.withOpacity(0.3),
+        color: active ? const Color(0xFFD4AF37) : Colors.white24,
       ),
     );
   }
 
   Widget _buildLocationPage() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+    return _buildFormContainer(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Location Details',
-            style: GoogleFonts.poppins(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: AppColors.secondary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Enter the project location information',
-            style: GoogleFonts.poppins(
-              fontSize: 14,
-              color: AppColors.greyDark.withOpacity(0.7),
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          _buildTextField(
-            controller: _placeController,
-            label: 'Place',
-            icon: Icons.location_on_outlined,
-            hint: 'Enter place name',
-          ),
+          _title('Location Details', 'Enter the location information'),
           const SizedBox(height: 16),
-
-          _buildTextField(
-            controller: _nearbyTownController,
-            label: 'Nearby Town',
-            icon: Icons.location_city_outlined,
-            hint: 'Enter nearby town',
-          ),
+          _textField(_placeController, 'Place', Icons.location_on_outlined),
           const SizedBox(height: 16),
-
-          _buildTextField(
-            controller: _talukController,
-            label: 'Taluk',
-            icon: Icons.map_outlined,
-            hint: 'Enter taluk',
-          ),
+          _textField(_nearbyTownController, 'Nearby Town', Icons.location_city),
           const SizedBox(height: 16),
-
-          _buildTextField(
-            controller: _districtController,
-            label: 'District',
-            icon: Icons.domain_outlined,
-            hint: 'Enter district',
-          ),
+          _textField(_talukController, 'Taluk', Icons.map_outlined),
           const SizedBox(height: 16),
-
-          _buildTextField(
-            controller: _mapLocationController,
-            label: 'Map Location',
-            icon: Icons.pin_drop_outlined,
-            hint: 'Enter coordinates or Google Maps link',
-            maxLines: 2,
-          ),
+          _textField(_districtController, 'District', Icons.domain_outlined),
           const SizedBox(height: 16),
-
-          // Date Picker
-          InkWell(
-            onTap: () => _selectDate(context),
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.white.withOpacity(0.8),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: AppColors.greyLight.withOpacity(0.5),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.calendar_today_outlined,
-                    color: AppColors.greyDark.withOpacity(0.6),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Date of Visit',
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            color: AppColors.greyDark.withOpacity(0.8),
-                          ),
-                        ),
-                        Text(
-                          _selectedDate == null
-                              ? 'Select date'
-                              : DateFormat('dd MMM yyyy').format(_selectedDate!),
-                          style: GoogleFonts.poppins(
-                            fontSize: 16,
-                            color: AppColors.secondary,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+          _textField(_mapLocationController,
+              'Map Location (lat,lng or address)', Icons.pin_drop),
           const SizedBox(height: 16),
-
-          // Status Dropdown
-          DropdownButtonFormField<String>(
-            value: _selectedStatus,
-            decoration: InputDecoration(
-              labelText: 'Status',
-              prefixIcon: Icon(
-                Icons.flag_outlined,
-                color: AppColors.greyDark.withOpacity(0.6),
-              ),
-            ),
-            items: _statusOptions.map((status) {
-              return DropdownMenuItem(
-                value: status,
-                child: Text(status),
-              );
-            }).toList(),
-            onChanged: (value) {
-              setState(() {
-                _selectedStatus = value;
-              });
-            },
-          ),
+          InkWell(onTap: () => _selectDate(context), child: _dateField()),
         ],
       ),
     );
   }
 
   Widget _buildFeaturePage() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+    return _buildFormContainer(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Select Feature',
-            style: GoogleFonts.poppins(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: AppColors.secondary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Choose the main feature for this project',
-            style: GoogleFonts.poppins(
-              fontSize: 14,
-              color: AppColors.greyDark.withOpacity(0.7),
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // Feature Cards
+          _title('Select Feature', 'Choose what you want to propose'),
+          const SizedBox(height: 16),
           Row(
             children: [
-              Expanded(
-                child: FeatureSelectionCard(
-                  title: 'Lingam',
-                  icon: Icons.account_balance,
-                  isSelected: _selectedFeature == 'lingam',
-                  onTap: () {
-                    setState(() {
-                      _selectedFeature = 'lingam';
-                    });
-                  },
-                ),
-              ),
+              Expanded(child: _featureButton('Lingam', Icons.account_balance)),
               const SizedBox(width: 12),
-              Expanded(
-                child: FeatureSelectionCard(
-                  title: 'Avudai',
-                  icon: Icons.architecture,
-                  isSelected: _selectedFeature == 'avudai',
-                  onTap: () {
-                    setState(() {
-                      _selectedFeature = 'avudai';
-                      _lingamType = null;
-                      _lingamDimension = null;
-                    });
-                  },
-                ),
-              ),
+              Expanded(child: _featureButton('Avudai', Icons.architecture)),
             ],
           ),
           const SizedBox(height: 12),
-          FeatureSelectionCard(
-            title: 'Nandhi',
-            icon: Icons.pets,
-            isSelected: _selectedFeature == 'nandhi',
-            onTap: () {
-              setState(() {
-                _selectedFeature = 'nandhi';
-                _lingamType = null;
-                _lingamDimension = null;
-              });
-            },
-          ),
+          _featureButton('Nandhi', Icons.pets),
+          if (_selectedFeature != null) _buildFeatureDetails(_selectedFeature!),
+        ],
+      ),
+    );
+  }
 
-          // Lingam Details (shown only when Lingam is selected)
-          if (_selectedFeature == 'lingam') ...[
-            const SizedBox(height: 32),
-            Text(
-              'Lingam Details',
-              style: GoogleFonts.poppins(
+  Widget _buildFeatureDetails(String featureName) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 30),
+        Text('$featureName Details',
+            style: GoogleFonts.poppins(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: AppColors.secondary,
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Old or New
-            Text(
-              'Type',
-              style: GoogleFonts.poppins(
+                color: const Color(0xFFD4AF37))),
+        const SizedBox(height: 16),
+        Text('Type',
+            style: GoogleFonts.poppins(
                 fontSize: 14,
-                color: AppColors.greyDark,
                 fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildRadioOption('Old', 'old'),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildRadioOption('New', 'new'),
-                ),
-              ],
-            ),
-
-            // Show dimension options only for New
-            if (_lingamType == 'new') ...[
-              const SizedBox(height: 24),
-              Text(
-                'Dimensions',
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  color: AppColors.greyDark,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              // Predefined dimensions
-              ...(_predefinedDimensions.map((dim) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: _buildDimensionOption(
-                    dim['name'],
-                    '₹${dim['amount']}',
-                    dim['name'],
-                  ),
-                );
-              })),
-
-              // Custom dimension
-              _buildDimensionOption('Others', 'Custom', 'custom'),
-
-              if (_lingamDimension == 'custom') ...[
-                const SizedBox(height: 16),
-                _buildTextField(
-                  controller: _customDimensionController,
-                  label: 'Custom Dimension',
-                  icon: Icons.straighten,
-                  hint: 'e.g., 5 feet x 3 feet',
-                ),
-              ],
-
-              const SizedBox(height: 16),
-              _buildTextField(
-                controller: _lingamAmountController,
-                label: 'Amount Needed',
-                icon: Icons.currency_rupee,
-                hint: 'Enter amount',
-                keyboardType: TextInputType.number,
-              ),
-            ],
+                color: Colors.white70)),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(child: _buildRadioOption('Old', 'old')),
+            const SizedBox(width: 12),
+            Expanded(child: _buildRadioOption('New', 'new')),
           ],
-        ],
+        ),
+        if (_type == 'new') ...[
+          const SizedBox(height: 24),
+          Text('Dimensions',
+              style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white70)),
+          const SizedBox(height: 8),
+          ..._predefinedDimensions.map((dim) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _buildDimensionOption(
+                    dim['name'], '₹${dim['amount']}', dim['name']),
+              )),
+          _buildDimensionOption('Others', 'Custom', 'custom'),
+          if (_dimension == 'custom') ...[
+            const SizedBox(height: 16),
+            _textField(_customDimensionController,
+                'Custom Dimension (e.g. 2.5 ft)', Icons.straighten),
+            const SizedBox(height: 16),
+            _textField(_featureAmountController, 'Amount Needed (₹)',
+                Icons.currency_rupee,
+                keyboard: TextInputType.number),
+          ]
+        ]
+      ],
+    );
+  }
+
+  Widget _featureButton(String title, IconData icon) {
+    final selected = _selectedFeature == title.toLowerCase();
+    return InkWell(
+      onTap: () => setState(() {
+        _selectedFeature = title.toLowerCase();
+        _type = null;
+        _dimension = null;
+        _customDimensionController.clear();
+        _featureAmountController.clear();
+      }),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: selected
+              ? const Color(0xFFD4AF37).withOpacity(0.2)
+              : Colors.white.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+              color: selected
+                  ? const Color(0xFFD4AF37)
+                  : Colors.white.withOpacity(0.2),
+              width: 2),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon,
+                color: selected ? const Color(0xFFD4AF37) : Colors.white70),
+            const SizedBox(width: 8),
+            Text(title,
+                style: GoogleFonts.poppins(
+                    color: selected ? const Color(0xFFD4AF37) : Colors.white,
+                    fontWeight: FontWeight.w600)),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildContactPage() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+    return _buildFormContainer(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Contact & Details',
-            style: GoogleFonts.poppins(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: AppColors.secondary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Add local contact and project images',
-            style: GoogleFonts.poppins(
-              fontSize: 14,
-              color: AppColors.greyDark.withOpacity(0.7),
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          Text(
-            'Local Contact Person',
-            style: GoogleFonts.poppins(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: AppColors.secondary,
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          _buildTextField(
-            controller: _contactNameController,
-            label: 'Contact Name',
-            icon: Icons.person_outline,
-            hint: 'Enter contact person name',
-          ),
+          _title('Contact & Details', 'Provide your details'),
           const SizedBox(height: 16),
-
-          _buildTextField(
-            controller: _contactPhoneController,
-            label: 'Phone Number',
-            icon: Icons.phone_outlined,
-            hint: 'Enter phone number',
-            keyboardType: TextInputType.phone,
-          ),
-          const SizedBox(height: 24),
-
-          Text(
-            'Project Images',
-            style: GoogleFonts.poppins(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: AppColors.secondary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Upload up to 5 images',
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              color: AppColors.greyDark.withOpacity(0.7),
-            ),
-          ),
-          const SizedBox(height: 12),
-
+          _textField(_contactNameController, 'Contact Name', Icons.person),
+          const SizedBox(height: 16),
+          _textField(_contactPhoneController, 'Phone Number', Icons.phone),
+          const SizedBox(height: 16),
           ImagePickerWidget(
-            maxImages: 5,
-            onImagesSelected: (images) {
-              setState(() {
-                _selectedImages = images;
-              });
-            },
-          ),
-
-          const SizedBox(height: 24),
-
-          _buildTextField(
-            controller: _estimatedAmountController,
-            label: 'Estimated Total Amount',
-            icon: Icons.account_balance_wallet_outlined,
-            hint: 'Enter total estimated amount',
-            keyboardType: TextInputType.number,
-          ),
+              maxImages: 5, onImagesSelected: (imgs) => _selectedImages = imgs),
+          const SizedBox(height: 16),
+          _textField(_estimatedAmountController, 'Estimated Amount',
+              Icons.account_balance_wallet,
+              keyboard: TextInputType.number),
         ],
-      ),
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    required String hint,
-    int maxLines = 1,
-    TextInputType keyboardType = TextInputType.text,
-  }) {
-    return TextFormField(
-      controller: controller,
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        prefixIcon: Icon(
-          icon,
-          color: AppColors.greyDark.withOpacity(0.6),
-        ),
-      ),
-      maxLines: maxLines,
-      keyboardType: keyboardType,
-    );
-  }
-
-  Widget _buildRadioOption(String title, String value) {
-    final isSelected = _lingamType == value;
-    return InkWell(
-      onTap: () {
-        setState(() {
-          _lingamType = value;
-          _lingamDimension = null;
-        });
-      },
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? AppColors.secondary.withOpacity(0.1)
-              : AppColors.white.withOpacity(0.8),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? AppColors.secondary : AppColors.greyLight.withOpacity(0.5),
-            width: isSelected ? 2 : 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-              color: isSelected ? AppColors.secondary : AppColors.greyDark,
-            ),
-            const SizedBox(width: 12),
-            Text(
-              title,
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                color: isSelected ? AppColors.secondary : AppColors.greyDark,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDimensionOption(String title, String subtitle, String value) {
-    final isSelected = _lingamDimension == value;
-    return InkWell(
-      onTap: () {
-        setState(() {
-          _lingamDimension = value;
-          if (value != 'custom') {
-            final dim = _predefinedDimensions.firstWhere(
-              (d) => d['name'] == value,
-              orElse: () => {'amount': 0},
-            );
-            _lingamAmountController.text = dim['amount'].toString();
-          } else {
-            _lingamAmountController.clear();
-          }
-        });
-      },
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? AppColors.secondary.withOpacity(0.1)
-              : AppColors.white.withOpacity(0.8),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? AppColors.secondary : AppColors.greyLight.withOpacity(0.5),
-            width: isSelected ? 2 : 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              isSelected ? Icons.check_circle : Icons.circle_outlined,
-              color: isSelected ? AppColors.secondary : AppColors.greyDark,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: GoogleFonts.poppins(
-                      fontSize: 16,
-                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                      color: isSelected ? AppColors.secondary : AppColors.greyDark,
-                    ),
-                  ),
-                  Text(
-                    subtitle,
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      color: AppColors.greyDark.withOpacity(0.7),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -836,83 +413,227 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
   Widget _buildNavigationButtons() {
     return Container(
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.secondary.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, -5),
-          ),
-        ],
-      ),
       child: Row(
         children: [
           if (_currentPage > 0)
             Expanded(
               child: OutlinedButton(
-                onPressed: _previousPage,
+                onPressed: () => _pageController.previousPage(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut),
                 style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  side: BorderSide(color: AppColors.greyLight),
-                ),
-                child: Text(
-                  'Previous',
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Color(0xFFD4AF37))),
+                child: Text('Previous',
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
               ),
             ),
           if (_currentPage > 0) const SizedBox(width: 16),
           Expanded(
-            flex: _currentPage == 0 ? 1 : 1,
             child: ElevatedButton(
-              onPressed: () {
-                if (!_validateCurrentPage()) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: const Text('Please fill all required fields'),
-                      backgroundColor: AppColors.warning,
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                  );
-                  return;
-                }
-
-                if (_currentPage < 2) {
-                  _nextPage();
-                } else {
-                  _createProject();
-                }
-              },
+              onPressed: _isLoading
+                  ? null
+                  : () {
+                      if (!_validateCurrentPage()) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                            content:
+                                const Text('Please fill all required fields'),
+                            backgroundColor: Colors.orange));
+                        return;
+                      }
+                      if (_currentPage < 2) {
+                        _pageController.nextPage(
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeInOut);
+                      } else {
+                        _createProject();
+                      }
+                    },
               style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-              ),
+                  backgroundColor: const Color(0xFFD4AF37),
+                  padding: const EdgeInsets.symmetric(vertical: 16)),
               child: _isLoading
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        color: AppColors.white,
-                        strokeWidth: 2,
-                      ),
-                    )
+                  ? const CircularProgressIndicator(color: Colors.white)
                   : Text(
-                      _currentPage < 2 ? 'Next' : 'Create Project',
-                      style: GoogleFonts.poppins(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      _currentPage < 2 ? 'Next' : 'Submit Plan',
+                      style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
                     ),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildFormContainer({required Widget child}) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: child,
+      ),
+    );
+  }
+
+  Widget _textField(TextEditingController c, String label, IconData icon,
+      {TextInputType keyboard = TextInputType.text}) {
+    return TextField(
+      controller: c,
+      keyboardType: keyboard,
+      style: const TextStyle(color: Colors.white),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.white70),
+        prefixIcon: Icon(icon, color: const Color(0xFFD4AF37)),
+        filled: true,
+        fillColor: Colors.white.withOpacity(0.05),
+        enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.white24)),
+        focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFD4AF37))),
+      ),
+    );
+  }
+
+  Widget _dateField() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.calendar_today, color: Color(0xFFD4AF37)),
+          const SizedBox(width: 12),
+          Text(
+            _selectedDate == null
+                ? 'Select Date of Visit'
+                : DateFormat('dd MMM yyyy').format(_selectedDate!),
+            style: GoogleFonts.poppins(color: Colors.white, fontSize: 16),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRadioOption(String title, String value) {
+    final isSelected = _type == value;
+    return InkWell(
+      onTap: () => setState(() {
+        _type = value;
+        _dimension = null;
+      }),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? const Color(0xFFD4AF37).withOpacity(0.15)
+              : Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+              color: isSelected
+                  ? const Color(0xFFD4AF37)
+                  : Colors.white.withOpacity(0.2),
+              width: isSelected ? 2 : 1),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              isSelected
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_unchecked,
+              color: isSelected ? const Color(0xFFD4AF37) : Colors.white70,
+            ),
+            const SizedBox(width: 12),
+            Text(title,
+                style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    color:
+                        isSelected ? const Color(0xFFD4AF37) : Colors.white)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDimensionOption(String title, String subtitle, String value) {
+    final isSelected = _dimension == value;
+    return InkWell(
+      onTap: () => setState(() {
+        _dimension = value;
+        if (value != 'custom') {
+          final dim = _predefinedDimensions.firstWhere(
+              (d) => d['name'] == value,
+              orElse: () => {'amount': 0});
+          _featureAmountController.text = dim['amount'].toString();
+          _estimatedAmountController.text = dim['amount'].toString();
+        } else {
+          _featureAmountController.clear();
+          _estimatedAmountController.clear();
+        }
+      }),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? const Color(0xFFD4AF37).withOpacity(0.15)
+              : Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+              color: isSelected
+                  ? const Color(0xFFD4AF37)
+                  : Colors.white.withOpacity(0.2),
+              width: isSelected ? 2 : 1),
+        ),
+        child: Row(
+          children: [
+            Icon(isSelected ? Icons.check_circle : Icons.circle_outlined,
+                color: isSelected ? const Color(0xFFD4AF37) : Colors.white70),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: GoogleFonts.poppins(
+                          color: isSelected
+                              ? const Color(0xFFD4AF37)
+                              : Colors.white,
+                          fontWeight: FontWeight.w600)),
+                  Text(subtitle,
+                      style: GoogleFonts.poppins(
+                          color: Colors.white70, fontSize: 13)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _title(String title, String subtitle) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title,
+            style: GoogleFonts.cinzelDecorative(
+                fontSize: 22,
+                color: const Color(0xFFD4AF37),
+                fontWeight: FontWeight.bold)),
+        const SizedBox(height: 4),
+        Text(subtitle,
+            style: GoogleFonts.poppins(color: Colors.white70, fontSize: 13)),
+      ],
     );
   }
 }
