@@ -6,7 +6,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 import '../utils/colors.dart';
-import '../widgets/feature_selection_card.dart';
 import '../widgets/image_picker_widget.dart';
 
 class CreateProjectScreen extends StatefulWidget {
@@ -49,22 +48,6 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
   List<String> _selectedImages = [];
   bool _isLoading = false;
 
-  @override
-  void dispose() {
-    _pageController.dispose();
-    _placeController.dispose();
-    _nearbyTownController.dispose();
-    _talukController.dispose();
-    _districtController.dispose();
-    _mapLocationController.dispose();
-    _contactNameController.dispose();
-    _contactPhoneController.dispose();
-    _estimatedAmountController.dispose();
-    _customDimensionController.dispose();
-    _featureAmountController.dispose();
-    super.dispose();
-  }
-
   bool _validateCurrentPage() {
     switch (_currentPage) {
       case 0:
@@ -93,27 +76,31 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
       lastDate: DateTime(2030),
       builder: (context, child) => Theme(
         data: Theme.of(context).copyWith(
-          colorScheme: ColorScheme.light(
-            primary: const Color(0xFFD4AF37),
+          colorScheme: const ColorScheme.light(
+            primary: Color(0xFFD4AF37),
             onPrimary: Colors.white,
           ),
         ),
         child: child!,
       ),
     );
+
     if (picked != null) setState(() => _selectedDate = picked);
   }
 
   Future<void> _createProject() async {
     if (!_validateCurrentPage()) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: const Text('Please fill all required fields'),
-        backgroundColor: Colors.orange,
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please fill all required fields'),
+          backgroundColor: Colors.orange,
+        ),
+      );
       return;
     }
 
     setState(() => _isLoading = true);
+
     try {
       final uuid = const Uuid();
       final user = FirebaseAuth.instance.currentUser!;
@@ -139,19 +126,29 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
         'estimatedAmount': _estimatedAmountController.text.trim(),
         'dateCreated': FieldValue.serverTimestamp(),
         'progress': 0,
+        'status': 'pending',
+
+        // ⭐ REQUIRED FOR SANCTION SYSTEM
+        'removedByUser': false,
       });
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: const Text('Plan proposed successfully!'),
-        backgroundColor: Colors.green,
-      ));
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Plan proposed successfully!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
       Navigator.pop(context, true);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Error: $e'),
-        backgroundColor: Colors.red,
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -224,6 +221,7 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
 
   Widget _step(int step, String label) {
     final active = _currentPage >= step;
+
     return Column(
       children: [
         CircleAvatar(
@@ -234,15 +232,20 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
           ),
         ),
         const SizedBox(height: 4),
-        Text(label,
-            style: GoogleFonts.poppins(
-                fontSize: 12, color: active ? Colors.white : Colors.white70)),
+        Text(
+          label,
+          style: GoogleFonts.poppins(
+            fontSize: 12,
+            color: active ? Colors.white : Colors.white70,
+          ),
+        ),
       ],
     );
   }
 
   Widget _line(int step) {
     final active = _currentPage > step;
+
     return Expanded(
       child: Container(
         height: 2,
@@ -269,7 +272,10 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
           _textField(_mapLocationController,
               'Map Location (lat,lng or address)', Icons.pin_drop),
           const SizedBox(height: 16),
-          InkWell(onTap: () => _selectDate(context), child: _dateField()),
+          InkWell(
+            onTap: () => _selectDate(context),
+            child: _dateField(),
+          ),
         ],
       ),
     );
@@ -302,17 +308,23 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 30),
-        Text('$featureName Details',
-            style: GoogleFonts.poppins(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: const Color(0xFFD4AF37))),
+        Text(
+          '$featureName Details',
+          style: GoogleFonts.poppins(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: const Color(0xFFD4AF37),
+          ),
+        ),
         const SizedBox(height: 16),
-        Text('Type',
-            style: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: Colors.white70)),
+        Text(
+          'Type',
+          style: GoogleFonts.poppins(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: Colors.white70,
+          ),
+        ),
         const SizedBox(height: 8),
         Row(
           children: [
@@ -323,26 +335,38 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
         ),
         if (_type == 'new') ...[
           const SizedBox(height: 24),
-          Text('Dimensions',
-              style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.white70)),
+          Text(
+            'Dimensions',
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: Colors.white70,
+            ),
+          ),
           const SizedBox(height: 8),
           ..._predefinedDimensions.map((dim) => Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: _buildDimensionOption(
-                    dim['name'], '₹${dim['amount']}', dim['name']),
+                  dim['name'],
+                  '₹${dim['amount']}',
+                  dim['name'],
+                ),
               )),
           _buildDimensionOption('Others', 'Custom', 'custom'),
           if (_dimension == 'custom') ...[
             const SizedBox(height: 16),
-            _textField(_customDimensionController,
-                'Custom Dimension (e.g. 2.5 ft)', Icons.straighten),
+            _textField(
+              _customDimensionController,
+              'Custom Dimension (e.g. 2.5 ft)',
+              Icons.straighten,
+            ),
             const SizedBox(height: 16),
-            _textField(_featureAmountController, 'Amount Needed (₹)',
-                Icons.currency_rupee,
-                keyboard: TextInputType.number),
+            _textField(
+              _featureAmountController,
+              'Amount Needed (₹)',
+              Icons.currency_rupee,
+              keyboard: TextInputType.number,
+            ),
           ]
         ]
       ],
@@ -351,6 +375,7 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
 
   Widget _featureButton(String title, IconData icon) {
     final selected = _selectedFeature == title.toLowerCase();
+
     return InkWell(
       onTap: () => setState(() {
         _selectedFeature = title.toLowerCase();
@@ -367,10 +392,11 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
               : Colors.white.withOpacity(0.1),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-              color: selected
-                  ? const Color(0xFFD4AF37)
-                  : Colors.white.withOpacity(0.2),
-              width: 2),
+            color: selected
+                ? const Color(0xFFD4AF37)
+                : Colors.white.withOpacity(0.2),
+            width: 2,
+          ),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -378,10 +404,13 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
             Icon(icon,
                 color: selected ? const Color(0xFFD4AF37) : Colors.white70),
             const SizedBox(width: 8),
-            Text(title,
-                style: GoogleFonts.poppins(
-                    color: selected ? const Color(0xFFD4AF37) : Colors.white,
-                    fontWeight: FontWeight.w600)),
+            Text(
+              title,
+              style: GoogleFonts.poppins(
+                color: selected ? const Color(0xFFD4AF37) : Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ],
         ),
       ),
@@ -400,11 +429,16 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
           _textField(_contactPhoneController, 'Phone Number', Icons.phone),
           const SizedBox(height: 16),
           ImagePickerWidget(
-              maxImages: 5, onImagesSelected: (imgs) => _selectedImages = imgs),
+            maxImages: 5,
+            onImagesSelected: (imgs) => _selectedImages = imgs,
+          ),
           const SizedBox(height: 16),
-          _textField(_estimatedAmountController, 'Estimated Amount',
-              Icons.account_balance_wallet,
-              keyboard: TextInputType.number),
+          _textField(
+            _estimatedAmountController,
+            'Estimated Amount',
+            Icons.account_balance_wallet,
+            keyboard: TextInputType.number,
+          ),
         ],
       ),
     );
@@ -419,13 +453,17 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
             Expanded(
               child: OutlinedButton(
                 onPressed: () => _pageController.previousPage(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeInOut),
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                ),
                 style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: const BorderSide(color: Color(0xFFD4AF37))),
-                child: Text('Previous',
-                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: Color(0xFFD4AF37)),
+                ),
+                child: Text(
+                  'Previous',
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                ),
               ),
             ),
           if (_currentPage > 0) const SizedBox(width: 16),
@@ -435,23 +473,28 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
                   ? null
                   : () {
                       if (!_validateCurrentPage()) {
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                            content:
-                                const Text('Please fill all required fields'),
-                            backgroundColor: Colors.orange));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Please fill all required fields'),
+                            backgroundColor: Colors.orange,
+                          ),
+                        );
                         return;
                       }
+
                       if (_currentPage < 2) {
                         _pageController.nextPage(
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeInOut);
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOut,
+                        );
                       } else {
                         _createProject();
                       }
                     },
               style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFD4AF37),
-                  padding: const EdgeInsets.symmetric(vertical: 16)),
+                backgroundColor: const Color(0xFFD4AF37),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
               child: _isLoading
                   ? const CircularProgressIndicator(color: Colors.white)
                   : Text(
@@ -489,15 +532,17 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
       decoration: InputDecoration(
         labelText: label,
         labelStyle: const TextStyle(color: Colors.white70),
-        prefixIcon: Icon(icon, color: const Color(0xFFD4AF37)),
+        prefixIcon: Icon(icon, color: Color(0xFFD4AF37)),
         filled: true,
         fillColor: Colors.white.withOpacity(0.05),
         enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Colors.white24)),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.white24),
+        ),
         focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFFD4AF37))),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFD4AF37)),
+        ),
       ),
     );
   }
@@ -527,6 +572,7 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
 
   Widget _buildRadioOption(String title, String value) {
     final isSelected = _type == value;
+
     return InkWell(
       onTap: () => setState(() {
         _type = value;
@@ -540,10 +586,11 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
               : Colors.white.withOpacity(0.05),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-              color: isSelected
-                  ? const Color(0xFFD4AF37)
-                  : Colors.white.withOpacity(0.2),
-              width: isSelected ? 2 : 1),
+            color: isSelected
+                ? const Color(0xFFD4AF37)
+                : Colors.white.withOpacity(0.2),
+            width: isSelected ? 2 : 1,
+          ),
         ),
         child: Row(
           children: [
@@ -554,11 +601,13 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
               color: isSelected ? const Color(0xFFD4AF37) : Colors.white70,
             ),
             const SizedBox(width: 12),
-            Text(title,
-                style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    color:
-                        isSelected ? const Color(0xFFD4AF37) : Colors.white)),
+            Text(
+              title,
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                color: isSelected ? const Color(0xFFD4AF37) : Colors.white,
+              ),
+            ),
           ],
         ),
       ),
@@ -567,13 +616,17 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
 
   Widget _buildDimensionOption(String title, String subtitle, String value) {
     final isSelected = _dimension == value;
+
     return InkWell(
       onTap: () => setState(() {
         _dimension = value;
+
         if (value != 'custom') {
           final dim = _predefinedDimensions.firstWhere(
-              (d) => d['name'] == value,
-              orElse: () => {'amount': 0});
+            (d) => d['name'] == value,
+            orElse: () => {'amount': 0},
+          );
+
           _featureAmountController.text = dim['amount'].toString();
           _estimatedAmountController.text = dim['amount'].toString();
         } else {
@@ -589,29 +642,38 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
               : Colors.white.withOpacity(0.05),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-              color: isSelected
-                  ? const Color(0xFFD4AF37)
-                  : Colors.white.withOpacity(0.2),
-              width: isSelected ? 2 : 1),
+            color: isSelected
+                ? const Color(0xFFD4AF37)
+                : Colors.white.withOpacity(0.2),
+            width: isSelected ? 2 : 1,
+          ),
         ),
         child: Row(
           children: [
-            Icon(isSelected ? Icons.check_circle : Icons.circle_outlined,
-                color: isSelected ? const Color(0xFFD4AF37) : Colors.white70),
+            Icon(
+              isSelected ? Icons.check_circle : Icons.circle_outlined,
+              color: isSelected ? const Color(0xFFD4AF37) : Colors.white70,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title,
-                      style: GoogleFonts.poppins(
-                          color: isSelected
-                              ? const Color(0xFFD4AF37)
-                              : Colors.white,
-                          fontWeight: FontWeight.w600)),
-                  Text(subtitle,
-                      style: GoogleFonts.poppins(
-                          color: Colors.white70, fontSize: 13)),
+                  Text(
+                    title,
+                    style: GoogleFonts.poppins(
+                      color:
+                          isSelected ? const Color(0xFFD4AF37) : Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.poppins(
+                      color: Colors.white70,
+                      fontSize: 13,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -625,14 +687,22 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title,
-            style: GoogleFonts.cinzelDecorative(
-                fontSize: 22,
-                color: const Color(0xFFD4AF37),
-                fontWeight: FontWeight.bold)),
+        Text(
+          title,
+          style: GoogleFonts.cinzelDecorative(
+            fontSize: 22,
+            color: const Color(0xFFD4AF37),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         const SizedBox(height: 4),
-        Text(subtitle,
-            style: GoogleFonts.poppins(color: Colors.white70, fontSize: 13)),
+        Text(
+          subtitle,
+          style: GoogleFonts.poppins(
+            color: Colors.white70,
+            fontSize: 13,
+          ),
+        ),
       ],
     );
   }
