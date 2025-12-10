@@ -8,7 +8,7 @@ import 'package:uuid/uuid.dart';
 import '../utils/colors.dart';
 import '../widgets/image_picker_widget.dart';
 
-import 'package:maps_launcher/maps_launcher.dart';
+import 'package:geolocator/geolocator.dart';
 
 class CreateProjectScreen extends StatefulWidget {
   const CreateProjectScreen({super.key});
@@ -28,12 +28,9 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
   final TextEditingController _mapLocationController = TextEditingController();
   final TextEditingController _contactNameController = TextEditingController();
   final TextEditingController _contactPhoneController = TextEditingController();
-  final TextEditingController _estimatedAmountController =
-      TextEditingController();
-  final TextEditingController _customDimensionController =
-      TextEditingController();
-  final TextEditingController _featureAmountController =
-      TextEditingController();
+  final TextEditingController _estimatedAmountController = TextEditingController();
+  final TextEditingController _customDimensionController = TextEditingController();
+  final TextEditingController _featureAmountController = TextEditingController();
 
   DateTime? _selectedDate;
 
@@ -90,18 +87,76 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
     if (picked != null) setState(() => _selectedDate = picked);
   }
 
-  // ============ OPEN MAP USING maps_launcher ============
-  void _openMapPicker() {
-    // Prefer full text from mapLocation if user pasted, else place/nearby
-    final query = _mapLocationController.text.trim().isNotEmpty
-        ? _mapLocationController.text.trim()
-        : _placeController.text.trim().isNotEmpty
-            ? _placeController.text.trim()
-            : _nearbyTownController.text.trim().isNotEmpty
-                ? _nearbyTownController.text.trim()
-                : 'temple';
+  String _toDMS(double value, bool isLat) {
+    final absValue = value.abs();
+    final degrees = absValue.floor();
+    final minutesFull = (absValue - degrees) * 60;
+    final minutes = minutesFull.floor();
+    final seconds = (minutesFull - minutes) * 60;
+    final direction = isLat
+        ? (value >= 0 ? 'N' : 'S')
+        : (value >= 0 ? 'E' : 'W');
+    return '${degrees}°'
+        '${minutes.toString().padLeft(2, '0')}\''
+        '${seconds.toStringAsFixed(1).padLeft(4, '0')}\"'
+        '$direction';
+  }
 
-    MapsLauncher.launchQuery(query);
+  Future<void> _detectAndFillLocation() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enable location services'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Location permission denied'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+    }
+    if (permission == LocationPermission.deniedForever) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Location permissions permanently denied. Please enable from Settings.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    // Collect multiple high-accuracy samples for better precision
+    List<Position> samples = [];
+    for (int i = 0; i < 3; i++) {
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.bestForNavigation,
+      );
+      samples.add(pos);
+      await Future.delayed(const Duration(milliseconds: 500));
+    }
+
+    double avgLat = samples.map((e) => e.latitude).reduce((a, b) => a + b) / samples.length;
+    double avgLng = samples.map((e) => e.longitude).reduce((a, b) => a + b) / samples.length;
+
+    String latDMS = _toDMS(avgLat, true);
+    String lngDMS = _toDMS(avgLng, false);
+
+    setState(() {
+      _mapLocationController.text = "$latDMS $lngDMS";
+    });
   }
 
   Future<void> _createProject() async {
@@ -154,7 +209,6 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
           backgroundColor: Colors.green,
         ),
       );
-
       Navigator.pop(context, true);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -235,7 +289,6 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
 
   Widget _step(int step, String label) {
     final active = _currentPage >= step;
-
     return Column(
       children: [
         CircleAvatar(
@@ -259,7 +312,6 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
 
   Widget _line(int step) {
     final active = _currentPage > step;
-
     return Expanded(
       child: Container(
         height: 2,
@@ -277,14 +329,12 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
           const SizedBox(height: 16),
           _textField(_placeController, 'Place', Icons.location_on_outlined),
           const SizedBox(height: 16),
-          _textField(
-              _nearbyTownController, 'Nearby Town', Icons.location_city),
+          _textField(_nearbyTownController, 'Nearby Town', Icons.location_city),
           const SizedBox(height: 16),
           _textField(_talukController, 'Taluk', Icons.map_outlined),
           const SizedBox(height: 16),
           _textField(_districtController, 'District', Icons.domain_outlined),
           const SizedBox(height: 16),
-
           Row(
             children: [
               Expanded(
@@ -292,9 +342,8 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
                   controller: _mapLocationController,
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
-                    labelText: 'Map Location (paste from Maps)',
-                    hintText:
-                        '1. Tap map icon  2. Long‑press location in Maps  3. Copy address/lat,lng  4. Paste here',
+                    labelText: 'Map Location (auto-detected)',
+                    hintText: 'Tap GPS icon to auto-detect location',
                     hintStyle: const TextStyle(color: Colors.white54),
                     labelStyle: const TextStyle(color: Colors.white70),
                     prefixIcon:
@@ -315,13 +364,13 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
               ),
               const SizedBox(width: 8),
               IconButton(
-                icon: const Icon(Icons.map, color: Color(0xFFD4AF37)),
-                onPressed: _openMapPicker,
-                tooltip: 'Open Google Maps to pick location',
+                icon: const Icon(Icons.my_location,
+                    color: Color(0xFFD4AF37)),
+                onPressed: _detectAndFillLocation,
+                tooltip: 'Use current location',
               ),
             ],
           ),
-
           const SizedBox(height: 16),
           InkWell(
             onTap: () => _selectDate(context),
@@ -398,35 +447,25 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
           ..._predefinedDimensions.map((dim) => Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: _buildDimensionOption(
-                  dim['name'],
-                  '₹${dim['amount']}',
-                  dim['name'],
-                ),
+                    dim['name'], '₹${dim['amount']}', dim['name']),
               )),
           _buildDimensionOption('Others', 'Custom', 'custom'),
           if (_dimension == 'custom') ...[
             const SizedBox(height: 16),
-            _textField(
-              _customDimensionController,
-              'Custom Dimension (e.g. 2.5 ft)',
-              Icons.straighten,
-            ),
+            _textField(_customDimensionController,
+                'Custom Dimension (e.g. 2.5 ft)', Icons.straighten),
             const SizedBox(height: 16),
-            _textField(
-              _featureAmountController,
-              'Amount Needed (₹)',
-              Icons.currency_rupee,
-              keyboard: TextInputType.number,
-            ),
-          ]
-        ]
+            _textField(_featureAmountController,
+                'Amount Needed (₹)', Icons.currency_rupee,
+                keyboard: TextInputType.number),
+          ],
+        ],
       ],
     );
   }
 
   Widget _featureButton(String title, IconData icon) {
     final selected = _selectedFeature == title.toLowerCase();
-
     return InkWell(
       onTap: () => setState(() {
         _selectedFeature = title.toLowerCase();
@@ -452,16 +491,134 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              color: selected ? const Color(0xFFD4AF37) : Colors.white70,
-            ),
+            Icon(icon,
+                color:
+                    selected ? const Color(0xFFD4AF37) : Colors.white70),
             const SizedBox(width: 8),
             Text(
               title,
               style: GoogleFonts.poppins(
                 color: selected ? const Color(0xFFD4AF37) : Colors.white,
                 fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// --- MISSING HELPERS: Radio & Dimension options ---
+
+  Widget _buildRadioOption(String title, String value) {
+    final isSelected = _type == value;
+
+    return InkWell(
+      onTap: () => setState(() {
+        _type = value;
+        _dimension = null;
+      }),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? const Color(0xFFD4AF37).withOpacity(0.15)
+              : Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected
+                ? const Color(0xFFD4AF37)
+                : Colors.white.withOpacity(0.2),
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              isSelected
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_unchecked,
+              color:
+                  isSelected ? const Color(0xFFD4AF37) : Colors.white70,
+            ),
+            const SizedBox(width: 12),
+            Text(
+              title,
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                color:
+                    isSelected ? const Color(0xFFD4AF37) : Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDimensionOption(
+      String title, String subtitle, String value) {
+    final isSelected = _dimension == value;
+
+    return InkWell(
+      onTap: () => setState(() {
+        _dimension = value;
+
+        if (value != 'custom') {
+          final dim = _predefinedDimensions.firstWhere(
+            (d) => d['name'] == value,
+            orElse: () => {'amount': 0},
+          );
+          _featureAmountController.text = dim['amount'].toString();
+          _estimatedAmountController.text = dim['amount'].toString();
+        } else {
+          _featureAmountController.clear();
+          _estimatedAmountController.clear();
+        }
+      }),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? const Color(0xFFD4AF37).withOpacity(0.15)
+              : Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected
+                ? const Color(0xFFD4AF37)
+                : Colors.white.withOpacity(0.2),
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              isSelected ? Icons.check_circle : Icons.circle_outlined,
+              color:
+                  isSelected ? const Color(0xFFD4AF37) : Colors.white70,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.poppins(
+                      color: isSelected
+                          ? const Color(0xFFD4AF37)
+                          : Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.poppins(
+                      color: Colors.white70,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -528,13 +685,13 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
                       if (!_validateCurrentPage()) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('Please fill all required fields'),
+                            content:
+                                Text('Please fill all required fields'),
                             backgroundColor: Colors.orange,
                           ),
                         );
                         return;
                       }
-
                       if (_currentPage < 2) {
                         _pageController.nextPage(
                           duration: const Duration(milliseconds: 300),
@@ -546,13 +703,15 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
                     },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFD4AF37),
-                padding: const EdgeInsets.symmetric(vertical: 16),
+                padding:
+                    const EdgeInsets.symmetric(vertical: 16),
               ),
               child: _isLoading
                   ? const CircularProgressIndicator(color: Colors.white)
                   : Text(
                       _currentPage < 2 ? 'Next' : 'Submit Plan',
-                      style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                      style:
+                          GoogleFonts.poppins(fontWeight: FontWeight.w600),
                     ),
             ),
           ),
@@ -585,7 +744,7 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
       decoration: InputDecoration(
         labelText: label,
         labelStyle: const TextStyle(color: Colors.white70),
-        prefixIcon: Icon(icon, color: Color(0xFFD4AF37)),
+        prefixIcon: Icon(icon, color: const Color(0xFFD4AF37)),
         filled: true,
         fillColor: Colors.white.withOpacity(0.05),
         enabledBorder: OutlineInputBorder(
@@ -594,143 +753,8 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFD4AF37)),
-        ),
-      ),
-    );
-  }
-
-  Widget _dateField() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white24),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.calendar_today, color: Color(0xFFD4AF37)),
-          const SizedBox(width: 12),
-          Text(
-            _selectedDate == null
-                ? 'Select Date of Visit'
-                : DateFormat('dd MMM yyyy').format(_selectedDate!),
-            style: GoogleFonts.poppins(color: Colors.white, fontSize: 16),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRadioOption(String title, String value) {
-    final isSelected = _type == value;
-
-    return InkWell(
-      onTap: () => setState(() {
-        _type = value;
-        _dimension = null;
-      }),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? const Color(0xFFD4AF37).withOpacity(0.15)
-              : Colors.white.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected
-                ? const Color(0xFFD4AF37)
-                : Colors.white.withOpacity(0.2),
-            width: isSelected ? 2 : 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              isSelected
-                  ? Icons.radio_button_checked
-                  : Icons.radio_button_unchecked,
-              color: isSelected ? const Color(0xFFD4AF37) : Colors.white70,
-            ),
-            const SizedBox(width: 12),
-            Text(
-              title,
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                color: isSelected ? const Color(0xFFD4AF37) : Colors.white,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDimensionOption(String title, String subtitle, String value) {
-    final isSelected = _dimension == value;
-
-    return InkWell(
-      onTap: () => setState(() {
-        _dimension = value;
-
-        if (value != 'custom') {
-          final dim = _predefinedDimensions.firstWhere(
-            (d) => d['name'] == value,
-            orElse: () => {'amount': 0},
-          );
-
-          _featureAmountController.text = dim['amount'].toString();
-          _estimatedAmountController.text = dim['amount'].toString();
-        } else {
-          _featureAmountController.clear();
-          _estimatedAmountController.clear();
-        }
-      }),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? const Color(0xFFD4AF37).withOpacity(0.15)
-              : Colors.white.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected
-                ? const Color(0xFFD4AF37)
-                : Colors.white.withOpacity(0.2),
-            width: isSelected ? 2 : 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              isSelected ? Icons.check_circle : Icons.circle_outlined,
-              color: isSelected ? const Color(0xFFD4AF37) : Colors.white70,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: GoogleFonts.poppins(
-                      color:
-                          isSelected ? const Color(0xFFD4AF37) : Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  Text(
-                    subtitle,
-                    style: GoogleFonts.poppins(
-                      color: Colors.white70,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          borderSide:
+              const BorderSide(color: Color(0xFFD4AF37)),
         ),
       ),
     );
@@ -757,6 +781,30 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _dateField() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.calendar_today,
+              color: Color(0xFFD4AF37)),
+          const SizedBox(width: 12),
+          Text(
+            _selectedDate == null
+                ? 'Select Date of Visit'
+                : DateFormat('dd MMM yyyy').format(_selectedDate!),
+            style: GoogleFonts.poppins(color: Colors.white, fontSize: 16),
+          ),
+        ],
+      ),
     );
   }
 }
