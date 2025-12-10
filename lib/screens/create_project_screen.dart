@@ -8,6 +8,8 @@ import 'package:uuid/uuid.dart';
 import '../utils/colors.dart';
 import '../widgets/image_picker_widget.dart';
 
+import 'package:maps_launcher/maps_launcher.dart';
+
 class CreateProjectScreen extends StatefulWidget {
   const CreateProjectScreen({super.key});
 
@@ -88,6 +90,20 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
     if (picked != null) setState(() => _selectedDate = picked);
   }
 
+  // ============ OPEN MAP USING maps_launcher ============
+  void _openMapPicker() {
+    // Prefer full text from mapLocation if user pasted, else place/nearby
+    final query = _mapLocationController.text.trim().isNotEmpty
+        ? _mapLocationController.text.trim()
+        : _placeController.text.trim().isNotEmpty
+            ? _placeController.text.trim()
+            : _nearbyTownController.text.trim().isNotEmpty
+                ? _nearbyTownController.text.trim()
+                : 'temple';
+
+    MapsLauncher.launchQuery(query);
+  }
+
   Future<void> _createProject() async {
     if (!_validateCurrentPage()) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -127,8 +143,6 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
         'dateCreated': FieldValue.serverTimestamp(),
         'progress': 0,
         'status': 'pending',
-
-        // ⭐ REQUIRED FOR SANCTION SYSTEM
         'removedByUser': false,
       });
 
@@ -263,14 +277,51 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
           const SizedBox(height: 16),
           _textField(_placeController, 'Place', Icons.location_on_outlined),
           const SizedBox(height: 16),
-          _textField(_nearbyTownController, 'Nearby Town', Icons.location_city),
+          _textField(
+              _nearbyTownController, 'Nearby Town', Icons.location_city),
           const SizedBox(height: 16),
           _textField(_talukController, 'Taluk', Icons.map_outlined),
           const SizedBox(height: 16),
           _textField(_districtController, 'District', Icons.domain_outlined),
           const SizedBox(height: 16),
-          _textField(_mapLocationController,
-              'Map Location (lat,lng or address)', Icons.pin_drop),
+
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _mapLocationController,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'Map Location (paste from Maps)',
+                    hintText:
+                        '1. Tap map icon  2. Long‑press location in Maps  3. Copy address/lat,lng  4. Paste here',
+                    hintStyle: const TextStyle(color: Colors.white54),
+                    labelStyle: const TextStyle(color: Colors.white70),
+                    prefixIcon:
+                        const Icon(Icons.pin_drop, color: Color(0xFFD4AF37)),
+                    filled: true,
+                    fillColor: Colors.white.withOpacity(0.05),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Colors.white24),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide:
+                          const BorderSide(color: Color(0xFFD4AF37)),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.map, color: Color(0xFFD4AF37)),
+                onPressed: _openMapPicker,
+                tooltip: 'Open Google Maps to pick location',
+              ),
+            ],
+          ),
+
           const SizedBox(height: 16),
           InkWell(
             onTap: () => _selectDate(context),
@@ -401,8 +452,10 @@ class _CreateProjectScreenState extends State<CreateProjectScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon,
-                color: selected ? const Color(0xFFD4AF37) : Colors.white70),
+            Icon(
+              icon,
+              color: selected ? const Color(0xFFD4AF37) : Colors.white70,
+            ),
             const SizedBox(width: 8),
             Text(
               title,

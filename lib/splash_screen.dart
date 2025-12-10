@@ -8,9 +8,8 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> 
+class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
-  
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
@@ -18,30 +17,34 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void initState() {
     super.initState();
-    
+
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 1200),
       vsync: this,
     );
-    
+
     _fadeAnimation = Tween<double>(
       begin: 0.0,
       end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: const Interval(0.0, 0.8, curve: Curves.easeOut),
-    ));
-    
+    ).animate(
+      CurvedAnimation(
+        parent: _animationController,
+        curve: const Interval(0.0, 0.8, curve: Curves.easeOut),
+      ),
+    );
+
     _scaleAnimation = Tween<double>(
       begin: 0.5,
       end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: const Interval(0.2, 1.0, curve: Curves.elasticOut),
-    ));
-    
+    ).animate(
+      CurvedAnimation(
+        parent: _animationController,
+        curve: const Interval(0.2, 1.0, curve: Curves.elasticOut),
+      ),
+    );
+
     _animationController.forward();
-    
+
     Future.delayed(const Duration(milliseconds: 2500), () {
       Navigator.pushReplacement(
         context,
@@ -60,8 +63,13 @@ class _SplashScreenState extends State<SplashScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(
-          gradient: AppColors.gradient,
+        // Use same gradient as LoginScreen
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF4A0404), Color(0xFF7A1E1E), Color(0xFFF5DEB3)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
         ),
         child: Center(
           child: AnimatedBuilder(
@@ -74,37 +82,47 @@ class _SplashScreenState extends State<SplashScreen>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      // Circular Shiva logo (same design as login)
                       Container(
-                        padding: const EdgeInsets.all(24),
+                        width: 140,
+                        height: 140,
                         decoration: BoxDecoration(
-                          color: AppColors.white.withOpacity(0.9),
                           shape: BoxShape.circle,
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFD4AF37), Color(0xFFB8860B)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
                           boxShadow: [
                             BoxShadow(
-                              color: AppColors.secondary.withOpacity(0.2),
-                              blurRadius: 20,
-                              offset: const Offset(0, 10),
+                              color: Colors.black.withOpacity(0.25),
+                              blurRadius: 25,
+                              offset: const Offset(0, 8),
                             ),
                           ],
                         ),
-                        child: Icon(
-                          Icons.landscape_outlined,
-                          size: 80,
-                          color: AppColors.secondary,
+                        child: Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: ClipOval(
+                            child: Image.asset(
+                              'assets/images/shiva.png',
+                              fit: BoxFit.cover,
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 24),
                       Text(
                         'ShivPunarnava',
-                        style: TextStyle(
-                          color: AppColors.white,
+                        style: const TextStyle(
+                          color: Colors.white,
                           fontSize: 32,
                           fontWeight: FontWeight.bold,
                           fontFamily: 'Poppins',
                           shadows: [
                             Shadow(
-                              color: AppColors.secondary.withOpacity(0.3),
-                              offset: const Offset(0, 2),
+                              color: Colors.black38,
+                              offset: Offset(0, 2),
                               blurRadius: 4,
                             ),
                           ],
@@ -114,7 +132,7 @@ class _SplashScreenState extends State<SplashScreen>
                       Text(
                         'Renovating Shiva idols',
                         style: TextStyle(
-                          color: AppColors.white.withOpacity(0.9),
+                          color: Colors.white.withOpacity(0.9),
                           fontSize: 16,
                           fontWeight: FontWeight.w400,
                           fontFamily: 'Poppins',
@@ -127,7 +145,7 @@ class _SplashScreenState extends State<SplashScreen>
                         child: CircularProgressIndicator(
                           strokeWidth: 3,
                           valueColor: AlwaysStoppedAnimation<Color>(
-                            AppColors.white.withOpacity(0.8),
+                            Colors.white.withOpacity(0.8),
                           ),
                         ),
                       ),

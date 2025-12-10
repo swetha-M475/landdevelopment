@@ -65,7 +65,8 @@ class _LoginScreenState extends State<LoginScreen> {
           content: Text('Login failed: $e'),
           backgroundColor: Colors.red.shade700,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       );
     } finally {
@@ -95,13 +96,14 @@ class _LoginScreenState extends State<LoginScreen> {
           child: LayoutBuilder(
             builder: (context, constraints) {
               return SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(minHeight: constraints.maxHeight),
                   child: IntrinsicHeight(
                     child: Column(
                       children: [
-                        // 🔱 Logo
+                        // 🔱 Logo with Shiva image
                         Container(
                           width: 120,
                           height: 120,
@@ -120,11 +122,14 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ],
                           ),
-                          child: const Center(
-                            child: Icon(
-                              Icons.temple_hindu_rounded,
-                              size: 65,
-                              color: Colors.white,
+                          child: Padding(
+                            // Optional: small padding so gradient border is visible
+                            padding: const EdgeInsets.all(6),
+                            child: ClipOval(
+                              child: Image.asset(
+                                'assets/images/shiva.png',
+                                fit: BoxFit.cover,
+                              ),
                             ),
                           ),
                         ),
@@ -133,7 +138,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                         // Title
                         Text(
-                          'Aranpani',
+                          'ShivPunarva',
                           style: GoogleFonts.cinzelDecorative(
                             fontSize: 32,
                             fontWeight: FontWeight.bold,
@@ -143,7 +148,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          'Sacred Land Development',
+                          'Renovating Shiva Idols',
                           style: GoogleFonts.poppins(
                             fontSize: 15,
                             fontStyle: FontStyle.italic,
@@ -241,10 +246,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ),
                                   ),
                                   obscureText: _obscurePassword,
-                                  validator: (v) =>
-                                      (v == null || v.length < 6)
-                                          ? 'Password min 6 chars'
-                                          : null,
+                                  validator: (v) => (v == null || v.length < 6)
+                                      ? 'Password min 6 chars'
+                                      : null,
                                 ),
 
                                 const SizedBox(height: 32),
@@ -260,8 +264,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                               BorderRadius.circular(14),
                                         ),
                                         child: const Center(
-                                            child: CircularProgressIndicator(
-                                                color: Colors.white)),
+                                          child: CircularProgressIndicator(
+                                              color: Colors.white),
+                                        ),
                                       )
                                     : SizedBox(
                                         width: double.infinity,

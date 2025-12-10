@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart'; // Not used now but kept as you said do not touch others
+import 'package:firebase_storage/firebase_storage.dart'; // kept as requested
 import 'dart:io';
 
 class ProjectOverviewScreen extends StatefulWidget {
@@ -19,13 +19,19 @@ class _ProjectOverviewScreenState extends State<ProjectOverviewScreen>
   final _firestore = FirebaseFirestore.instance;
 
   late TabController _tabController;
-  String _activityFilter = 'done';
   bool _loadingAdd = false;
 
   final ImagePicker _picker = ImagePicker();
 
   // OFFLINE BILLS STORAGE
   List<Map<String, dynamic>> _localBills = [];
+
+  // FORM CONTROLLERS FOR ACTIVITIES TAB
+  final TextEditingController _godNameController = TextEditingController();
+  final TextEditingController _peopleController = TextEditingController();
+  final TextEditingController _donationController = TextEditingController();
+  final TextEditingController _billingController = TextEditingController();
+  String _workPart = 'lingam';
 
   @override
   void initState() {
@@ -36,6 +42,10 @@ class _ProjectOverviewScreenState extends State<ProjectOverviewScreen>
   @override
   void dispose() {
     _tabController.dispose();
+    _godNameController.dispose();
+    _peopleController.dispose();
+    _donationController.dispose();
+    _billingController.dispose();
     super.dispose();
   }
 
@@ -291,7 +301,7 @@ class _ProjectOverviewScreenState extends State<ProjectOverviewScreen>
                     'title': titleCtrl.text.trim(),
                     'amount': amountCtrl.text.trim(),
                     'images': selectedImages,
-                    'date': bill['date'], // Keep old date
+                    'date': bill['date'],
                   };
                 });
 
@@ -307,7 +317,7 @@ class _ProjectOverviewScreenState extends State<ProjectOverviewScreen>
   }
 
   // ======================================================================
-  // BILLS TAB (UPDATED)
+  // BILLS TAB
   // ======================================================================
   Widget _billsTab() {
     return Column(
@@ -356,8 +366,6 @@ class _ProjectOverviewScreenState extends State<ProjectOverviewScreen>
                       margin: const EdgeInsets.symmetric(vertical: 10),
                       child: ListTile(
                         contentPadding: const EdgeInsets.all(14),
-
-                        // Title + menu
                         title: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -390,7 +398,6 @@ class _ProjectOverviewScreenState extends State<ProjectOverviewScreen>
                             )
                           ],
                         ),
-
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -442,35 +449,126 @@ class _ProjectOverviewScreenState extends State<ProjectOverviewScreen>
   }
 
   // ======================================================================
-  // BELOW CODE IS NOT TOUCHED (YOUR ORIGINAL)
+  // ACTIVITIES TAB AS DIRECT FORM
   // ======================================================================
+  Future<void> _submitActivityForm() async {
+    final godName = _godNameController.text.trim();
+    if (godName.isEmpty) return;
 
-  Future<void> _showAddActivityDialog() async {
-    final _titleController = TextEditingController();
-    String status = 'todo';
+    setState(() => _loadingAdd = true);
 
-    await showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFFFFF7E8),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-          side: const BorderSide(color: Color(0xFFB6862C), width: 2),
-        ),
-        title: Text(
-          'Add Work',
-          style: GoogleFonts.poppins(
-            fontWeight: FontWeight.w600,
-            color: const Color(0xFF6A1F1A),
-          ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
+    try {
+      await _firestore.collection('activities').add({
+        'projectId': widget.project['id'],
+        'godName': godName,
+        'workPart': _workPart,
+        'peopleVisited': _peopleController.text.trim(),
+        'amountDonated': _donationController.text.trim(),
+        'billingCurrent': _billingController.text.trim(),
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      _godNameController.clear();
+      _peopleController.clear();
+      _donationController.clear();
+      _billingController.clear();
+      _workPart = 'lingam';
+      setState(() {});
+    } finally {
+      if (mounted) setState(() => _loadingAdd = false);
+    }
+  }
+
+  Widget _activitiesTab() {
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Text(
+              'Work Details',
+              style: GoogleFonts.poppins(
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF6A1F1A),
+              ),
+            ),
+            const SizedBox(height: 12),
             TextField(
-              controller: _titleController,
+              controller: _godNameController,
               decoration: InputDecoration(
-                labelText: 'Work title',
+                labelText: 'Name of God',
+                hintText: 'e.g. Shiva, Perumal, Amman',
+                labelStyle: GoogleFonts.poppins(color: Colors.brown),
+                filled: true,
+                fillColor: const Color(0xFFFFF2D5),
+                focusedBorder: OutlineInputBorder(
+                    borderSide:
+                        const BorderSide(color: Color(0xFF8E3D2C), width: 2),
+                    borderRadius: BorderRadius.circular(12)),
+                enabledBorder: OutlineInputBorder(
+                    borderSide:
+                        const BorderSide(color: Color(0xFFB6862C), width: 1),
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Part of work',
+              style: GoogleFonts.poppins(color: Colors.brown, fontSize: 13),
+            ),
+            const SizedBox(height: 4),
+            Column(
+              children: [
+                RadioListTile<String>(
+                  value: 'lingam',
+                  groupValue: _workPart,
+                  activeColor: const Color(0xFF8E3D2C),
+                  title: const Text('Lingam'),
+                  onChanged: (v) {
+                    if (v == null) return;
+                    setState(() => _workPart = v);
+                  },
+                ),
+                RadioListTile<String>(
+                  value: 'avudai',
+                  groupValue: _workPart,
+                  activeColor: const Color(0xFF8E3D2C),
+                  title: const Text('Avudai'),
+                  onChanged: (v) {
+                    if (v == null) return;
+                    setState(() => _workPart = v);
+                  },
+                ),
+                RadioListTile<String>(
+                  value: 'nandhi',
+                  groupValue: _workPart,
+                  activeColor: const Color(0xFF8E3D2C),
+                  title: const Text('Nandhi'),
+                  onChanged: (v) {
+                    if (v == null) return;
+                    setState(() => _workPart = v);
+                  },
+                ),
+                RadioListTile<String>(
+                  value: 'shed',
+                  groupValue: _workPart,
+                  activeColor: const Color(0xFF8E3D2C),
+                  title: const Text('Shed'),
+                  onChanged: (v) {
+                    if (v == null) return;
+                    setState(() => _workPart = v);
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _peopleController,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: 'Number of people visited',
                 labelStyle: GoogleFonts.poppins(color: Colors.brown),
                 filled: true,
                 fillColor: const Color(0xFFFFF2D5),
@@ -485,250 +583,89 @@ class _ProjectOverviewScreenState extends State<ProjectOverviewScreen>
               ),
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: RadioListTile<String>(
-                    value: 'todo',
-                    groupValue: status,
-                    title: const Text('To be done'),
-                    activeColor: Color(0xFF8E3D2C),
-                    onChanged: (v) => status = v!,
+            TextField(
+              controller: _donationController,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: 'Amount donated',
+                labelStyle: GoogleFonts.poppins(color: Colors.brown),
+                filled: true,
+                fillColor: const Color(0xFFFFF2D5),
+                focusedBorder: OutlineInputBorder(
+                    borderSide:
+                        const BorderSide(color: Color(0xFF8E3D2C), width: 2),
+                    borderRadius: BorderRadius.circular(12)),
+                enabledBorder: OutlineInputBorder(
+                    borderSide:
+                        const BorderSide(color: Color(0xFFB6862C), width: 1),
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _billingController,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: 'Billing: current amount received',
+                labelStyle: GoogleFonts.poppins(color: Colors.brown),
+                filled: true,
+                fillColor: const Color(0xFFFFF2D5),
+                focusedBorder: OutlineInputBorder(
+                    borderSide:
+                        const BorderSide(color: Color(0xFF8E3D2C), width: 2),
+                    borderRadius: BorderRadius.circular(12)),
+                enabledBorder: OutlineInputBorder(
+                    borderSide:
+                        const BorderSide(color: Color(0xFFB6862C), width: 1),
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton(
+                onPressed: _loadingAdd ? null : _submitActivityForm,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF8E3D2C),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
                   ),
                 ),
-                Expanded(
-                  child: RadioListTile<String>(
-                    value: 'ongoing',
-                    groupValue: status,
-                    title: const Text('Ongoing'),
-                    activeColor: Color(0xFF8E3D2C),
-                    onChanged: (v) => status = v!,
-                  ),
-                ),
-              ],
+                child: _loadingAdd
+                    ? const CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      )
+                    : Text(
+                        'Save Work',
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+              ),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: GoogleFonts.poppins(color: Colors.brown),
-            ),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF8E3D2C),
-            ),
-            onPressed: () async {
-              final title = _titleController.text.trim();
-              if (title.isEmpty) return;
-
-              Navigator.pop(context);
-              setState(() => _loadingAdd = true);
-
-              try {
-                await _firestore.collection('activities').add({
-                  'projectId': widget.project['id'],
-                  'title': title,
-                  'status': status,
-                  'createdAt': FieldValue.serverTimestamp(),
-                });
-              } finally {
-                if (mounted) setState(() => _loadingAdd = false);
-              }
-            },
-            child: Text(
-              'Add',
-              style: GoogleFonts.poppins(color: Colors.white),
-            ),
-          )
-        ],
       ),
     );
   }
 
-  Stream<QuerySnapshot<Map<String, dynamic>>> _activitiesStream(
-      String statusFilter) {
-    final base = _firestore
-        .collection('activities')
-        .where('projectId', isEqualTo: widget.project['id']);
-
-    if (statusFilter == 'all') {
-      return base.orderBy('createdAt', descending: true).snapshots();
-    }
-
-    return base
-        .where('status', isEqualTo: statusFilter)
-        .orderBy('createdAt', descending: true)
-        .snapshots();
-  }
-
-  Widget _activitiesTab() {
-    return Column(
-      children: [
-        const SizedBox(height: 16),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-          child: SizedBox(
-            height: 56,
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _showAddActivityDialog,
-              child: Text(
-                '+ Add Work',
-                style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF8E3D2C),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 18),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFF0D0),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Color(0xFFB6862C), width: 1.5),
-            ),
-            child: Row(
-              children: [
-                _segmentedButton('To Be Done', 'todo'),
-                _segmentedButton('Ongoing', 'ongoing'),
-                _segmentedButton('Completed', 'done'),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 18),
-        Expanded(
-          child: Container(
-            color: const Color(0xFFFFF7E8),
-            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: _activitiesStream(_activityFilter),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting)
-                  return const Center(child: CircularProgressIndicator());
-
-                final docs = snapshot.data?.docs ?? [];
-
-                if (docs.isEmpty) {
-                  return Center(
-                    child: Text(
-                      _activityFilter == 'todo'
-                          ? 'No activities to be done'
-                          : _activityFilter == 'ongoing'
-                              ? 'No ongoing activities'
-                              : 'No completed activities',
-                      style: GoogleFonts.poppins(
-                        fontSize: 16,
-                        color: Colors.grey,
-                      ),
-                    ),
-                  );
-                }
-
-                return ListView.builder(
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-                  itemCount: docs.length,
-                  itemBuilder: (context, i) {
-                    final data = docs[i].data();
-                    final title = data['title'] ?? '';
-                    final status = data['status'] ?? '';
-                    final id = docs[i].id;
-
-                    return Card(
-                      elevation: 2,
-                      color: const Color(0xFFFFFDF5),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        side: const BorderSide(
-                            color: Color(0xFFB6862C), width: 1),
-                      ),
-                      margin: const EdgeInsets.symmetric(
-                          vertical: 8, horizontal: 4),
-                      child: ListTile(
-                        title: Text(
-                          title,
-                          style: GoogleFonts.poppins(
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF6A1F1A),
-                          ),
-                        ),
-                        subtitle: Text(
-                          status.toUpperCase(),
-                          style: GoogleFonts.poppins(color: Colors.brown),
-                        ),
-                        trailing: PopupMenuButton<String>(
-                          icon: const Icon(Icons.more_vert,
-                              color: Color(0xFF6A1F1A)),
-                          onSelected: (v) async {
-                            if (v == 'delete') {
-                              await _firestore
-                                  .collection('activities')
-                                  .doc(id)
-                                  .delete();
-                            } else {
-                              await _firestore
-                                  .collection('activities')
-                                  .doc(id)
-                                  .update({'status': v});
-                            }
-                          },
-                          itemBuilder: (_) => const [
-                            PopupMenuItem(
-                                value: 'todo', child: Text('Mark To Be Done')),
-                            PopupMenuItem(
-                                value: 'ongoing', child: Text('Mark Ongoing')),
-                            PopupMenuItem(
-                                value: 'done', child: Text('Mark Completed')),
-                            PopupMenuItem(
-                                value: 'delete', child: Text('Delete')),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
+  // ======================================================================
+  // SEGMENTED BUTTON (NOT USED, LEFT AS DUMMY)
+  // ======================================================================
   Widget _segmentedButton(String label, String value) {
-    final active = _activityFilter == value;
+    final bool active = false;
     return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _activityFilter = value),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: active ? const Color(0xFF8E3D2C) : const Color(0xFFFFF7E8),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Center(
-            child: Text(
-              label,
-              style: GoogleFonts.poppins(
-                color: active ? Colors.white : Colors.brown,
-                fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-              ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Center(
+          child: Text(
+            label,
+            style: GoogleFonts.poppins(
+              color: active ? Colors.white : Colors.brown,
+              fontWeight: active ? FontWeight.w700 : FontWeight.w500,
             ),
           ),
         ),
@@ -744,8 +681,9 @@ class _ProjectOverviewScreenState extends State<ProjectOverviewScreen>
           .orderBy('date', descending: true)
           .snapshots(),
       builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting)
+        if (snap.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
+        }
 
         final docs = snap.data?.docs ?? [];
 
@@ -793,8 +731,9 @@ class _ProjectOverviewScreenState extends State<ProjectOverviewScreen>
           .orderBy('createdAt', descending: true)
           .snapshots(),
       builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting)
+        if (snap.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
+        }
 
         final docs = snap.data?.docs ?? [];
 
@@ -917,11 +856,7 @@ class _ProjectOverviewScreenState extends State<ProjectOverviewScreen>
                       return ConstrainedBox(
                         constraints:
                             BoxConstraints(minHeight: constraints.maxHeight),
-                        child: Column(
-                          children: [
-                            Expanded(child: _activitiesTab()),
-                          ],
-                        ),
+                        child: _activitiesTab(),
                       );
                     },
                   ),
